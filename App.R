@@ -1,6 +1,7 @@
 # app.R -------------------------------------------------------------------
 # ENTRY POINT (the file Posit Connect Cloud runs).
-# Dark minimalist UI. Chart tracks cumulative study time in minutes.
+# Premium dark UI: ambient glow, gradient buttons, hover lifts, tooltips.
+# Current timer ticks in min:sec; chart accrues in whole minutes.
 
 library(shiny)
 library(bslib)
@@ -19,88 +20,117 @@ ensure_log_sheet(SHEET_ID)
 # --- theme ----------------------------------------------------------------
 my_theme <- bs_theme(
   version   = 5,
-  bg        = "#0E0F12",
-  fg        = "#ECEDEF",
-  primary   = "#7DE2C3",
+  bg        = "#0A0B0D",
+  fg        = "#F4F5F6",
+  primary   = "#5EEAD4",
   base_font = font_collection(font_google("Inter", local = FALSE),
                               "system-ui", "sans-serif")
 )
 
 css <- "
 :root{
-  --bg:#0E0F12; --surface:#16181D; --surface2:#1C1F26;
-  --border:rgba(255,255,255,.07);
-  --text:#ECEDEF; --muted:#8B919C;
-  --accent:#7DE2C3; --accent-soft:rgba(125,226,195,.12);
-  --break:#E2C37D; --break-soft:rgba(226,195,125,.12);
-  --stop:#E27D8B;  --stop-soft:rgba(226,125,139,.10);
+  --bg:#0A0B0D; --surface:#131519; --surface2:#15171C;
+  --border:rgba(255,255,255,.07); --border-hi:rgba(255,255,255,.14);
+  --text:#F4F5F6; --muted:#888F9B;
+  --accent:#5EEAD4; --accent2:#34D399; --accent-soft:rgba(94,234,212,.12);
+  --break:#FBBF77; --break-soft:rgba(251,191,119,.10);
+  --stop:#F4889A;  --stop-soft:rgba(244,136,154,.10);
+  --grad:linear-gradient(135deg,#5EEAD4 0%,#34D399 100%);
+  --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,monospace;
 }
 *{box-sizing:border-box;}
 body,.bslib-page-sidebar{background:var(--bg)!important;color:var(--text);}
-.navbar{display:none;}                       /* drop the default header bar */
+.navbar{display:none;}
+
+/* ambient glow behind everything */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(620px 380px at 78% -8%,rgba(94,234,212,.10),transparent 60%),
+             radial-gradient(520px 360px at 8% 110%,rgba(52,211,153,.06),transparent 60%);}
+.bslib-sidebar-layout,.page{position:relative;z-index:1;}
 
 /* sidebar */
 .bslib-sidebar-layout>.sidebar{background:var(--surface2)!important;
   border-right:1px solid var(--border)!important;}
-.bslib-sidebar-layout .form-control{background:var(--surface);
+.bslib-sidebar-layout .form-control{background:#0F1115;
   border:1px solid var(--border);color:var(--text);border-radius:10px;
-  padding:10px 12px;font-size:.92rem;}
+  padding:11px 13px;font-size:.92rem;transition:border-color .15s,box-shadow .15s;}
 .bslib-sidebar-layout .form-control:focus{border-color:var(--accent);
   box-shadow:0 0 0 3px var(--accent-soft);}
 .form-control::placeholder{color:var(--muted);}
-.fld-label{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:6px;display:block;font-weight:600;}
+.fld-label{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:7px;display:block;font-weight:600;}
 
 /* buttons */
-.bslib-sidebar-layout .btn{width:100%;border-radius:11px;padding:12px 14px;
-  font-weight:600;font-size:.92rem;border:1px solid var(--border);margin-top:10px;
-  transition:all .15s ease;background:transparent;color:var(--text);}
-.btn-study{background:var(--accent)!important;color:#0E0F12!important;border:none!important;}
-.btn-study:hover{filter:brightness(1.08);transform:translateY(-1px);}
-.btn-break{color:var(--break)!important;background:var(--break-soft)!important;
-  border-color:transparent!important;}
-.btn-break:hover{filter:brightness(1.15);}
-.btn-stop{color:var(--stop)!important;background:var(--stop-soft)!important;
-  border-color:transparent!important;}
-.btn-stop:hover{filter:brightness(1.15);}
+.bslib-sidebar-layout .btn{width:100%;border-radius:12px;padding:12px 14px;
+  font-weight:600;font-size:.92rem;border:1px solid var(--border);margin-top:11px;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  background:transparent;color:var(--text);
+  transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .16s,filter .16s,background .16s;}
+.bslib-sidebar-layout .btn .fa,.bslib-sidebar-layout .btn svg{opacity:.9;}
+.btn-study{background:var(--grad)!important;color:#06231D!important;border:none!important;
+  box-shadow:0 6px 20px -8px rgba(52,211,153,.55);}
+.btn-study:hover{transform:translateY(-2px);filter:brightness(1.05);
+  box-shadow:0 12px 28px -10px rgba(52,211,153,.7);}
+.btn-study:active{transform:translateY(0) scale(.99);}
+.btn-break{color:var(--break)!important;background:var(--break-soft)!important;border-color:transparent!important;}
+.btn-break:hover{transform:translateY(-2px);background:rgba(251,191,119,.16)!important;}
+.btn-stop{color:var(--stop)!important;background:var(--stop-soft)!important;border-color:transparent!important;}
+.btn-stop:hover{transform:translateY(-2px);background:rgba(244,136,154,.16)!important;}
 
 /* status */
-.status-row{margin-top:20px;display:flex;align-items:center;gap:9px;
+.status-row{margin-top:22px;display:flex;align-items:center;gap:9px;
   font-size:.85rem;color:var(--muted);}
 .status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);}
-.status-dot.live{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);}
+.status-dot.live{background:var(--accent);box-shadow:0 0 0 0 var(--accent-soft);
+  animation:pulse 1.8s infinite;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(94,234,212,.45);}
+  70%{box-shadow:0 0 0 8px rgba(94,234,212,0);}100%{box-shadow:0 0 0 0 rgba(94,234,212,0);}}
 
-/* page */
-.page{padding:22px 24px;}
-.topbar{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
-.topbar .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
-.topbar .brand{font-size:1.15rem;font-weight:700;letter-spacing:-.01em;}
-.topbar .sub{font-size:.8rem;color:var(--muted);margin-left:2px;}
+/* page + header */
+.page{padding:24px 26px;}
+.topbar{display:flex;align-items:center;gap:11px;margin-bottom:26px;}
+.topbar .dot{width:10px;height:10px;border-radius:50%;background:var(--grad);
+  box-shadow:0 0 14px rgba(94,234,212,.6);}
+.topbar .brand{font-size:1.18rem;font-weight:700;letter-spacing:-.015em;}
+.topbar .sub{font-size:.8rem;color:var(--muted);}
 
 /* stat cards */
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
-@media(max-width:820px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
-.stat{background:var(--surface);border:1px solid var(--border);
-  border-radius:14px;padding:16px 18px;}
-.stat-label{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--muted);font-weight:600;margin-bottom:8px;}
-.stat-value{font-size:1.7rem;font-weight:600;font-variant-numeric:tabular-nums;
+@media(max-width:860px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
+.stat{background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--surface);
+  border:1px solid var(--border);border-radius:16px;padding:17px 19px;cursor:default;
+  transition:transform .18s cubic-bezier(.2,.8,.2,1),border-color .18s,box-shadow .18s;}
+.stat:hover{transform:translateY(-3px);border-color:var(--border-hi);
+  box-shadow:0 16px 34px -20px rgba(0,0,0,.8);}
+.stat-label{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;margin-bottom:9px;}
+.stat-value{font-size:1.75rem;font-weight:650;font-variant-numeric:tabular-nums;
   letter-spacing:-.02em;line-height:1;}
 .stat-value .shiny-text-output{display:inline;}
-.stat-accent .stat-value{color:var(--accent);}
+.stat-accent .stat-value{color:var(--accent);font-family:var(--mono);font-weight:600;
+  text-shadow:0 0 22px rgba(94,234,212,.35);}
 
 /* chart */
-.chart-card{background:var(--surface);border:1px solid var(--border);
-  border-radius:16px;padding:18px 18px 8px;}
-.chart-head{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--muted);font-weight:600;margin-bottom:12px;}
+.chart-card{background:linear-gradient(180deg,rgba(255,255,255,.02),transparent),var(--surface);
+  border:1px solid var(--border);border-radius:18px;padding:18px 18px 8px;
+  transition:border-color .18s;}
+.chart-card:hover{border-color:var(--border-hi);}
+.chart-head{font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;margin-bottom:14px;}
+
+/* tooltip polish */
+.tooltip .tooltip-inner{background:#1C1F26;color:var(--text);border:1px solid var(--border-hi);
+  border-radius:9px;font-size:.8rem;padding:7px 10px;box-shadow:0 10px 30px -12px rgba(0,0,0,.9);}
+.tooltip .tooltip-arrow::before{border-top-color:#1C1F26!important;
+  border-bottom-color:#1C1F26!important;}
 "
 
-# small helper for a stat card
-stat_card <- function(label, id, accent = FALSE) {
-  div(class = paste("stat", if (accent) "stat-accent"),
-      div(class = "stat-label", label),
-      div(class = "stat-value", textOutput(id)))
+# helper: a stat card with a hover tooltip
+stat_card <- function(label, id, tip, accent = FALSE) {
+  card <- div(class = paste("stat", if (accent) "stat-accent"),
+              div(class = "stat-label", label),
+              div(class = "stat-value", textOutput(id)))
+  tooltip(card, tip, placement = "bottom")
 }
 
 # --- UI -------------------------------------------------------------------
@@ -111,9 +141,15 @@ ui <- page_sidebar(
     width = 300,
     tags$span(class = "fld-label", "Task"),
     textInput("task_name", NULL, placeholder = "What are you working on?"),
-    actionButton("start_study", "Start studying", class = "btn-study"),
-    actionButton("start_break", "Start break",    class = "btn-break"),
-    actionButton("stop",        "Stop",           class = "btn-stop"),
+    tooltip(actionButton("start_study",
+                         tagList(icon("play"), "Start studying"), class = "btn-study"),
+            "Begin a focus block", placement = "right"),
+    tooltip(actionButton("start_break",
+                         tagList(icon("mug-hot"), "Start break"), class = "btn-break"),
+            "Pause and log break time", placement = "right"),
+    tooltip(actionButton("stop",
+                         tagList(icon("stop"), "Stop"), class = "btn-stop"),
+            "End and save the current segment", placement = "right"),
     uiOutput("status_ui")
   ),
   tags$head(tags$style(HTML(css))),
@@ -122,12 +158,14 @@ ui <- page_sidebar(
           span(class = "dot"), span(class = "brand", "Focus"),
           span(class = "sub", "study timer")),
       div(class = "stat-grid",
-          stat_card("Current",     "current_elapsed", accent = TRUE),
-          stat_card("Study today", "study_today"),
-          stat_card("Break today", "break_today"),
-          stat_card("Total today", "total_today")),
+          stat_card("Current",     "current_elapsed",
+                    "Live time on the current segment (min : sec)", accent = TRUE),
+          stat_card("Study today", "study_today",
+                    "All study time logged today, including the live block"),
+          stat_card("Break today", "break_today", "All break time logged today"),
+          stat_card("Total today", "total_today", "Study + break for today")),
       div(class = "chart-card",
-          div(class = "chart-head", "Study minutes \u00B7 this session"),
+          div(class = "chart-head", "Cumulative study \u00B7 this session"),
           plotOutput("live_plot", height = "300px"))
   )
 )
@@ -186,40 +224,46 @@ server <- function(input, output, session) {
         span(label))
   })
   
-  output$current_elapsed <- renderText(fmt_hms(current_secs()))
-  output$study_today     <- renderText(fmt_hm(today_minutes()$study))
-  output$break_today     <- renderText(fmt_hm(today_minutes()$brk))
-  output$total_today     <- renderText(fmt_hm(today_minutes()$total))
+  # Current segment as MIN:SEC (minute-forward, ticks live)
+  output$current_elapsed <- renderText({
+    s <- as.integer(current_secs())
+    sprintf("%02d:%02d", s %/% 60, s %% 60)
+  })
+  output$study_today <- renderText(fmt_hm(today_minutes()$study))
+  output$break_today <- renderText(fmt_hm(today_minutes()$brk))
+  output$total_today <- renderText(fmt_hm(today_minutes()$total))
   
   output$live_plot <- renderPlot({
-    tick_min()                                   # redraw each minute
+    tick_min()
     df <- cumulative_study(rv$session_log, rv$seg_start, rv$mode, rv$running)
     if (nrow(df) == 0) {
       ggplot() +
         annotate("text", x = 0, y = 0,
                  label = "Press \u201CStart studying\u201D to begin",
-                 colour = "#8B919C", size = 4.4) +
+                 colour = "#888F9B", size = 4.4) +
         theme_void()
     } else {
+      last <- utils::tail(df, 1)
       ggplot(df, aes(time, cum_min)) +
-        geom_area(fill = "#7DE2C3", alpha = 0.10) +
-        geom_line(colour = "#7DE2C3", linewidth = 1.1) +
-        geom_point(data = utils::tail(df, 1), colour = "#7DE2C3", size = 2.4) +
+        geom_area(fill = "#5EEAD4", alpha = 0.08) +
+        geom_line(colour = "#5EEAD4", linewidth = 1.2, lineend = "round") +
+        geom_point(data = last, colour = "#5EEAD4", size = 6, alpha = 0.18) +
+        geom_point(data = last, colour = "#5EEAD4", size = 2.6) +
         scale_y_continuous(labels = function(x) paste0(round(x), "m")) +
         labs(x = NULL, y = NULL) +
         theme_minimal(base_size = 13) +
         theme(
-          plot.background   = element_rect(fill = "transparent", colour = NA),
-          panel.background  = element_rect(fill = "transparent", colour = NA),
-          panel.grid.minor  = element_blank(),
+          plot.background    = element_rect(fill = "transparent", colour = NA),
+          panel.background   = element_rect(fill = "transparent", colour = NA),
+          panel.grid.minor   = element_blank(),
           panel.grid.major.x = element_blank(),
-          panel.grid.major.y = element_line(colour = "#FFFFFF12"),
-          axis.text  = element_text(colour = "#8B919C"),
+          panel.grid.major.y = element_line(colour = "#FFFFFF10"),
+          axis.text  = element_text(colour = "#888F9B"),
           axis.ticks = element_blank(),
-          text       = element_text(colour = "#8B919C")
+          text       = element_text(colour = "#888F9B")
         )
     }
   }, bg = "transparent")
 }
-
+ 
 shinyApp(ui, server)
