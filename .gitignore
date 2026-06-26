@@ -1,0 +1,11 @@
+# NEVER commit credentials
+service-account.json
+.Renviron
+.env
+
+# R cruft
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+rsconnect/
